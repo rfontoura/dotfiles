@@ -1,6 +1,6 @@
 require 'rake'
 require 'fileutils'
-require File.join(File.dirname(__FILE__), 'bin', 'yadr', 'neobundle')
+require File.join(File.dirname(__FILE__), 'bin', 'yadr', 'vundle')
 
 desc "Hook our dotfiles into system-standard positions."
 task :install => [:submodule_init, :submodules] do
@@ -14,20 +14,20 @@ task :install => [:submodule_init, :submodules] do
   install_rvm_binstubs
 
   # this has all the runcoms from this directory.
-  file_operation(Dir.glob('git/*')) if want_to_install?('git configs (color, aliases)')
-  file_operation(Dir.glob('irb/*')) if want_to_install?('irb/pry configs (more colorful)')
-  file_operation(Dir.glob('ruby/*')) if want_to_install?('rubygems config (faster/no docs)')
-  file_operation(Dir.glob('ctags/*')) if want_to_install?('ctags config (better js/ruby support)')
-  file_operation(Dir.glob('tmux/*')) if want_to_install?('tmux config')
-  file_operation(Dir.glob('vimify/*')) if want_to_install?('vimification of command line tools')
+  install_files(Dir.glob('git/*')) if want_to_install?('git configs (color, aliases)')
+  install_files(Dir.glob('irb/*')) if want_to_install?('irb/pry configs (more colorful)')
+  install_files(Dir.glob('ruby/*')) if want_to_install?('rubygems config (faster/no docs)')
+  install_files(Dir.glob('ctags/*')) if want_to_install?('ctags config (better js/ruby support)')
+  install_files(Dir.glob('tmux/*')) if want_to_install?('tmux config')
+  install_files(Dir.glob('vimify/*')) if want_to_install?('vimification of command line tools')
   if want_to_install?('vim configuration (highly recommended)')
-    file_operation(Dir.glob('{vim,vimrc}'))
-    Rake::Task["install_neobundle"].execute
+    install_files(Dir.glob('{vim,vimrc}'))
+    Rake::Task["install_vundle"].execute
   end
 
   Rake::Task["install_prezto"].execute
 
-  install_fonts if RUBY_PLATFORM.downcase.include?("darwin")
+  install_fonts
 
   install_term_theme if RUBY_PLATFORM.downcase.include?("darwin")
 
@@ -42,7 +42,9 @@ task :install_prezto do
   end
 end
 
+desc 'Updates the installation'
 task :update do
+  Rake::Task["vundle_migration"].execute if needs_migration_to_vundle?
   Rake::Task["install"].execute
   #TODO: for now, we do the same as install. But it would be nice
   #not to clobber zsh files
@@ -70,26 +72,43 @@ task :submodules do
   end
 end
 
-desc "Runs NeoBundle installer in a clean vim environment"
-task :install_neobundle do
+desc "Performs migration from pathogen to vundle"
+task :vundle_migration do
   puts "======================================================"
-  puts "Installing NeoBundle."
-  puts "The installer will now proceed to run NeoBundleInstall."
-  puts "Due to a bug, the installer may report some errors"
-  puts "when installing the plugin 'syntastic'. Fortunately"
-  puts "Syntastic will install and work properly despite the"
-  puts "errors so please just ignore them and let's hope for"
-  puts "an update that fixes the problem!"
+  puts "Migrating from pathogen to vundle vim plugin manager. "
+  puts "This will move the old .vim/bundle directory to"
+  puts ".vim/bundle.old and replacing all your vim plugins with"
+  puts "the standard set of plugins. You will then be able to "
+  puts "manage your vim's plugin configuration by editing the "
+  puts "file .vim/vundles.vim"
+  puts "======================================================"
+
+  Dir.glob(File.join('vim', 'bundle','**')) do |sub_path|
+    run %{git config -f #{File.join('.git', 'config')} --remove-section submodule.#{sub_path}}
+    # `git rm --cached #{sub_path}`
+    FileUtils.rm_rf(File.join('.git', 'modules', sub_path))
+  end
+  FileUtils.mv(File.join('vim','bundle'), File.join('vim', 'bundle.old'))
+end
+
+desc "Runs Vundle installer in a clean vim environment"
+task :install_vundle do
+  puts "======================================================"
+  puts "Installing and updating vundles."
+  puts "The installer will now proceed to run PluginInstall to install vundles."
   puts "======================================================"
 
   puts ""
 
-  run %{
-    cd $HOME/.yadr
-    git clone https://github.com/Shougo/neobundle.vim #{File.join('vim','bundle', 'neobundle.vim')}
-  }
+  vundle_path = File.join('vim','bundle', 'vundle')
+  unless File.exists?(vundle_path)
+    run %{
+      cd $HOME/.yadr
+      git clone https://github.com/gmarik/vundle.git #{vundle_path}
+    }
+  end
 
-  NeoBundle::update_neobundle
+  Vundle::update_vundle
 end
 
 task :default => 'install'
@@ -150,12 +169,10 @@ def install_homebrew
   run %{brew update}
   puts
   puts
-  puts "=========================================================="
-  puts "Installing Homebrew packages (there may be some warnings):"
-  puts "=========================================================="
-  puts "zsh, ctags, git, hub, tmux, reattach-to-user-namespace, the_silver_searcher, macvim (with custom file icons and lua interface support)"
-  run %{brew install zsh ctags git hub ghi tmux reattach-to-user-namespace the_silver_searcher tidy-html5 diff-so-fancy}
-  # Installing MacVim with lua support and customs file icons
+  puts "======================================================"
+  puts "Installing Homebrew packages...There may be some warnings."
+  puts "======================================================"
+  run %{brew install zsh ctags git hub tmux reattach-to-user-namespace the_silver_searcher}
   run %{brew install macvim --custom-icons --override-system-vim --with-lua --with-luajit}
   puts
   puts
@@ -163,9 +180,10 @@ end
 
 def install_fonts
   puts "======================================================"
-  puts "Installing patched fonts for Powerline."
+  puts "Installing patched fonts for Powerline/Lightline."
   puts "======================================================"
-  run %{ cp -f $HOME/.yadr/fonts/* $HOME/Library/Fonts }
+  run %{ cp -f $HOME/.yadr/fonts/* $HOME/Library/Fonts } if RUBY_PLATFORM.downcase.include?("darwin")
+  run %{ mkdir -p ~/.fonts && cp ~/.yadr/fonts/* ~/.fonts && fc-cache -vf ~/.fonts } if RUBY_PLATFORM.downcase.include?("linux")
   puts
 end
 
@@ -191,6 +209,9 @@ def install_term_theme
   # Ask the user which theme he wants to install
   message = "Which theme would you like to apply to your iTerm2 profile?"
   color_scheme = ask message, iTerm_available_themes
+
+  return if color_scheme == 'None'
+
   color_scheme_file = File.join('iTerm2', "#{color_scheme}.itermcolors")
 
   # Ask the user on which profile he wants to install the theme
@@ -207,7 +228,7 @@ def install_term_theme
 end
 
 def iTerm_available_themes
-   Dir['iTerm2/*.itermcolors'].map { |value| File.basename(value, '.itermcolors')}
+   Dir['iTerm2/*.itermcolors'].map { |value| File.basename(value, '.itermcolors')} << 'None'
 end
 
 def iTerm_profile_list
@@ -241,7 +262,7 @@ def install_prezto
   run %{ ln -nfs "$HOME/.yadr/zsh/prezto" "${ZDOTDIR:-$HOME}/.zprezto" }
 
   # The prezto runcoms are only going to be installed if zprezto has never been installed
-  file_operation(Dir.glob('zsh/prezto/runcoms/z*'), :copy)
+  install_files(Dir.glob('zsh/prezto/runcoms/z*'), :symlink)
 
   puts
   puts "Overriding prezto ~/.zpreztorc with YADR's zpreztorc to enable additional modules..."
@@ -258,13 +279,13 @@ def install_prezto
   else
     puts "Setting zsh as your default shell"
     if File.exists?("/usr/local/bin/zsh")
-        if File.readlines("/private/etc/shells").grep("/usr/local/bin/zsh").empty?
-            puts "Adding zsh to standard shell list"
-            run %{ echo "/usr/local/bin/zsh" | sudo tee -a /private/etc/shells }
-        end
-        run %{ chsh -s /usr/local/bin/zsh }
+      if File.readlines("/private/etc/shells").grep("/usr/local/bin/zsh").empty?
+        puts "Adding zsh to standard shell list"
+        run %{ echo "/usr/local/bin/zsh" | sudo tee -a /private/etc/shells }
+      end
+      run %{ chsh -s /usr/local/bin/zsh }
     else
-        run %{ chsh -s /bin/zsh }
+      run %{ chsh -s /bin/zsh }
     end
   end
 end
@@ -278,7 +299,7 @@ def want_to_install? (section)
   end
 end
 
-def file_operation(files, method = :symlink)
+def install_files(files, method = :symlink)
   files.each do |f|
     file = f.split('/').last
     source = "#{ENV["PWD"]}/#{f}"
@@ -312,6 +333,11 @@ def file_operation(files, method = :symlink)
     puts
   end
 end
+
+def needs_migration_to_vundle?
+  File.exists? File.join('vim', 'bundle', 'tpope-vim-pathogen')
+end
+
 
 def list_vim_submodules
   result=`git submodule -q foreach 'echo $name"||"\`git remote -v | awk "END{print \\\\\$2}"\`'`.select{ |line| line =~ /^vim.bundle/ }.map{ |line| line.split('||') }
