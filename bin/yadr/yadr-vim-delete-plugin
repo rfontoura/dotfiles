@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 require File.join(File.dirname(__FILE__), 'default_libs')
-require File.join(File.dirname(__FILE__), 'neobundle')
+require File.join(File.dirname(__FILE__), 'vundle')
 
 GitStyleBinary.command do
   version "yadr-delete-vim-plugin 1.0"
@@ -19,9 +19,9 @@ GitStyleBinary.command do
     repo=command.opts[:url]
     puts "Removing \"#{repo}\" from the plugin list"
     bundle_path=repo.gsub("https://github.com/", "")
-    removed=NeoBundle::remove_plugin_from_neobundle repo
+    removed=Vundle::remove_plugin_from_vundle repo
     if removed
-      NeoBundle::update_neobundle
+      Vundle::update_vundle
       puts "Successfully removed\"#{repo}\""
     else
       puts "Unable to find \"#{repo}\" among the installed plugins"
