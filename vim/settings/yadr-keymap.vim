@@ -75,7 +75,15 @@ imap <C-a> <esc>wa
 
 " ==== NERD tree
 " Open the project tree and expose current file in the nerdtree with Ctrl-\
-nnoremap <silent> <C-\> :NERDTreeFind<CR>:vertical<CR>
+" " calls NERDTreeFind iff NERDTree is active, current window contains a modifiable file, and we're not in vimdiff
+function! OpenNerdTree()
+  if &modifiable && strlen(expand('%')) > 0 && !&diff
+    NERDTreeFind
+  else
+    NERDTreeToggle
+  endif
+endfunction
+nnoremap <silent> <C-\> :call OpenNerdTree()<CR>
 
 " ,q to toggle quickfix window (where you have stuff like Ag)
 " ,oq to open it back up (rare)
@@ -157,7 +165,7 @@ map ,hi :echo "hi<" . synIDattr(synID(line("."),col("."),1),"name") . '> trans<'
 " ,hp = html preview
 map <silent> ,hp :!open -a Safari %<CR><CR>
 
-" Map Ctrl-x and Ctrl-z to navigate the quickfix error list (normally :cn and
+" Map ,,n and ,,p to navigate the quickfix error list (normally :cn and
 " :cp)
 nnoremap <silent> ,,n :cn<CR>
 nnoremap <silent> ,,p :cp<CR>

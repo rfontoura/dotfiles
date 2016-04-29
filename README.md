@@ -53,7 +53,6 @@ The keymaps for each plugin or behaviour can be found peeking at [doc](doc) fold
 * OSX
   * Config to open MacVim maximized by default
   * New brew packages
-    * `hub`, `ghi` are installed via brew instead of vendored in
     * `diff-so-fancy`
     * `tidy5-html5`
 
@@ -259,6 +258,8 @@ of plugins above to learn more.
  * `,mc` - mark this word for MultiCursor (like sublime). Use `Ctrl-n` (next), `Ctrl-p` (prev), `Ctrl-x`(skip) to add more cursors, then do normal vim things like edit the word.
  * `gK` - Opens the documentation for the word under the cursor.
  * Spacebar - Sneak - type two characters to move there in a line. Kind of like vim's `f` but more accurate.
+ * `:Gsearch foo` - global search, then do your normal `%s/search/replace/g` and follow up with `:Greplace` to replace across all files. When done use `:wall` to write all the files.
+
 
 #### File Navigation
 
@@ -361,7 +362,7 @@ These hacks are Lion-centric. May not work for other OS'es. My favorite mods inc
 brew uninstall macvim
 brew remove macvim
 brew cleanup
-brew install macvim --custom-icons --override-system-vim --with-lua --with-luajit
+brew install macvim --custom-icons --with-override-system-vim --with-lua --with-luajit
 ```
 
 ### Terminal Vim troubles with Lua?
